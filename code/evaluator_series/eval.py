@@ -28,14 +28,23 @@ def main(args):
         )
     elif "chatglm" in args.model_name:
         if args.cuda_device:
-            os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
-        device = torch.device("cuda")
-        evaluator=ChatGLM_Evaluator(
-            choices=choices,
-            k=args.ntrain,
-            model_name=args.model_name,
-            device=device
-        )
+            os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
+        device = torch.device(f"cuda:{str(args.cuda_device)}")
+        if args.model_name.startswith('finetuned'):
+            evaluator=FinetunedChatGLM_Evaluator(
+                choices=choices,
+                k=args.ntrain,
+                model_name=args.model_name,
+                device=device,
+                args=args
+            )
+        else:
+            evaluator=ChatGLM_Evaluator(
+                choices=choices,
+                k=args.ntrain,
+                model_name=args.model_name,
+                device=device
+            )
     elif "minimax" in args.model_name:
         evaluator=MiniMax_Evaluator(
             choices=choices,
@@ -43,16 +52,6 @@ def main(args):
             group_id=args.minimax_group_id,
             api_key=args.minimax_key,
             model_name=args.model_name
-        )
-    elif "finetuned_chatglm" in args.model_name:
-        if args.cuda_device:
-            os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
-        device = torch.device(f"cuda:{args.cuda_device}")
-        evaluator=FinetunedChatGLM_Evaluator(
-            choices=choices,
-            k=args.ntrain,
-            model_name=args.model_name,
-            device=device
         )
     else:
         print("Unknown model name")
@@ -86,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_name",type=str)
     parser.add_argument("--cot",action="store_true") # chain of thought
     parser.add_argument("--subject","-s",type=str,default="operating_system")
-    parser.add_argument("--cuda_device", type=str, default="0")
+    parser.add_argument("--cuda_device", type=int, default=0)
     # Model Args
     parser.add_argument("--quant", choices=[8, 4], type=int, default=None)
     parser.add_argument("--ckpt_path", type=str)

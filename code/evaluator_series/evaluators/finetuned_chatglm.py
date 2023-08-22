@@ -10,12 +10,13 @@ from sat.model.finetune import PTuningV2Mixin
 from sat.model.finetune.lora2 import LoraMixin
 from sat.model.finetune import AdapterMixin
 from sat.model.base_model import non_conflict
+from sat.model.mixins import CachedAutoregressiveMixin
 from transformers import AutoTokenizer, AutoModel
 from transformers.generation.logits_process import LogitsProcessor
 from transformers.generation.utils import LogitsProcessorList
 from evaluators.evaluator import Evaluator
 
-from .model import VisualGLMModel
+from .model import VisualGLMModel, chat
 
 
 
@@ -154,6 +155,10 @@ class FineTuneVisualGLMModel(VisualGLMModel):
             else:
                 print(n)
         print('------------unfreeze_layer--------------')
+    
+    def chat(self, tokenizer, question, do_sample=False, history=[]):
+        answer, history, _ = chat(image_path=None, model=self, tokenizer=tokenizer,query=question,history=history)
+        return answer
 
 
 
@@ -166,22 +171,24 @@ class InvalidScoreLogitsProcessor(LogitsProcessor):
         return scores
 
 class FinetunedChatGLM_Evaluator(Evaluator):
-    def __init__(self, choices, k, model_name, device, ckpt_path, quant):
+    def __init__(self, choices, k, model_name, device, args):
         super(FinetunedChatGLM_Evaluator, self).__init__(choices, model_name, k)
         # try adding 'mirror="tuna"' and 'resume_download=True' if facing the 'read timed out' problem
         # or directly clone the model
         self.tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, mirror="tuna")
         model, model_args = FineTuneVisualGLMModel.from_pretrained(
-            ckpt_path,
+            args.ckpt_path,
             args=argparse.Namespace(
                 fp16=True,
                 skip_init=True,
-                use_gpu_initialization=True if (torch.cuda.is_available() and quant is None) else False,
-                device=device if (torch.cuda.is_available() and quant is None) else 'cpu',
+                use_gpu_initialization=True if (torch.cuda.is_available() and args.quant is None) else False,
+                device=device,
             )
         )
+        model = model.half().to(device)
         model = model.eval()
-        self.model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, mirror="tuna", resume_download=True).half().to(device)
+        model.add_mixin('auto-regressive', CachedAutoregressiveMixin())
+        self.model = model
 
     def eval_subject(self, subject_name, test_df, dev_df=None, few_shot=False, cot=False, save_result_dir=None):
         correct_num = 0
@@ -197,7 +204,7 @@ class FinetunedChatGLM_Evaluator(Evaluator):
         for row_index, row in tqdm(test_df.iterrows(), total=len(test_df)):
             question = self.format_example(row, include_answer=False, cot=cot)
             if few_shot:
-                response, _ = self.model.chat(self.tokenizer, question, do_sample=False, history=history)
+                response = self.model.chat(self.tokenizer, question, do_sample=False, history=history)
                 response = response.strip()
                 # For ChatGLM, we use answer extraction in answer-only mode too.
                 ans, direct_extract = self.extract_cot_answer(row, response)
