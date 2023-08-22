@@ -75,6 +75,10 @@ if __name__ == "__main__":
     parser.add_argument("--model_name",type=str)
     parser.add_argument("--cot",action="store_true")
     parser.add_argument("--subject","-s",type=str,default="operating_system")
-    parser.add_argument("--cuda_device", type=str)    
+    parser.add_argument("--cuda_device", type=str, default="cuda:0")
+    # Model Args
+    parser.add_argument("--quant", choices=[8, 4], type=int, default=None)
+    parser.add_argument("--share", action="store_true")
+    parser.add_argument("--ckpt_path", type=str)
     args = parser.parse_args()
     main(args)
