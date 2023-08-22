@@ -6,6 +6,7 @@ from evaluators.chatgpt import ChatGPT_Evaluator
 from evaluators.moss import Moss_Evaluator
 from evaluators.chatglm import ChatGLM_Evaluator
 from evaluators.minimax import MiniMax_Evaluator
+from evaluators.finetuned_chatglm import FinetunedChatGLM_Evaluator
 
 import time
 choices = ["A", "B", "C", "D"]
@@ -43,6 +44,16 @@ def main(args):
             api_key=args.minimax_key,
             model_name=args.model_name
         )
+    elif "finetuned_chatglm" in args.model_name:
+        if args.cuda_device:
+            os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_device
+        device = torch.device(f"cuda:{args.cuda_device}")
+        evaluator=FinetunedChatGLM_Evaluator(
+            choices=choices,
+            k=args.ntrain,
+            model_name=args.model_name,
+            device=device
+        )
     else:
         print("Unknown model name")
         return -1
@@ -71,14 +82,13 @@ if __name__ == "__main__":
     parser.add_argument("--openai_key", type=str,default="xxx")
     parser.add_argument("--minimax_group_id", type=str,default="xxx")
     parser.add_argument("--minimax_key", type=str,default="xxx")
-    parser.add_argument("--few_shot", action="store_true")
+    parser.add_argument("--few_shot", action="store_true") # few shot提示
     parser.add_argument("--model_name",type=str)
-    parser.add_argument("--cot",action="store_true")
+    parser.add_argument("--cot",action="store_true") # chain of thought
     parser.add_argument("--subject","-s",type=str,default="operating_system")
-    parser.add_argument("--cuda_device", type=str, default="cuda:0")
+    parser.add_argument("--cuda_device", type=str, default="0")
     # Model Args
     parser.add_argument("--quant", choices=[8, 4], type=int, default=None)
-    parser.add_argument("--share", action="store_true")
     parser.add_argument("--ckpt_path", type=str)
     args = parser.parse_args()
     main(args)

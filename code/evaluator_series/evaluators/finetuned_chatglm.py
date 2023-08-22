@@ -14,7 +14,8 @@ from transformers import AutoTokenizer, AutoModel
 from transformers.generation.logits_process import LogitsProcessor
 from transformers.generation.utils import LogitsProcessorList
 from evaluators.evaluator import Evaluator
-from model import VisualGLMModel
+
+from .model import VisualGLMModel
 
 
 
@@ -165,19 +166,20 @@ class InvalidScoreLogitsProcessor(LogitsProcessor):
         return scores
 
 class FinetunedChatGLM_Evaluator(Evaluator):
-    def __init__(self, choices, k, model_name, device, args):
+    def __init__(self, choices, k, model_name, device, ckpt_path, quant):
         super(FinetunedChatGLM_Evaluator, self).__init__(choices, model_name, k)
         # try adding 'mirror="tuna"' and 'resume_download=True' if facing the 'read timed out' problem
         # or directly clone the model
         self.tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, mirror="tuna")
         model, model_args = FineTuneVisualGLMModel.from_pretrained(
-            args.ckpt_path,
+            ckpt_path,
             args=argparse.Namespace(
-            fp16=True,
-            skip_init=True,
-            use_gpu_initialization=True if (torch.cuda.is_available() and args.quant is None) else False,
-            device='cuda' if (torch.cuda.is_available() and args.quant is None) else 'cpu',
-        ))
+                fp16=True,
+                skip_init=True,
+                use_gpu_initialization=True if (torch.cuda.is_available() and quant is None) else False,
+                device=device if (torch.cuda.is_available() and quant is None) else 'cpu',
+            )
+        )
         model = model.eval()
         self.model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True, mirror="tuna", resume_download=True).half().to(device)
 
