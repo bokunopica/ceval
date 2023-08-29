@@ -197,6 +197,7 @@ class FinetunedChatGLM_Evaluator(Evaluator):
                 result = []
             score = []
         if few_shot:
+
             history = self.generate_few_shot_prompt(subject_name, dev_df, cot=cot)
         else:
             history = []
