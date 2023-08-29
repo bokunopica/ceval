@@ -3,3 +3,4 @@
 /.idea/
 code/evaluator_series/evaluators/__pycache__/
 venv
+*.pyc
