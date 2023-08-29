@@ -3,7 +3,7 @@ python code/evaluator_series/eval.py \
     --ckpt_path '/home/qianq/mycodes/VisualGLM-6B/checkpoints/2-gpus/finetune-visualglm-6b-ptuning-pre-128' \
     --cuda_device '1' \
     --few_shot \
-    --ntrain 3 \
     --subject 'accountant' \
+    --quant 8
     # --cot
 

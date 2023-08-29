@@ -15,6 +15,7 @@ from transformers import AutoTokenizer, AutoModel
 from transformers.generation.logits_process import LogitsProcessor
 from transformers.generation.utils import LogitsProcessorList
 from evaluators.evaluator import Evaluator
+from sat.quantization.kernels import quantize
 
 from .model import VisualGLMModel, chat
 
@@ -157,7 +158,7 @@ class FineTuneVisualGLMModel(VisualGLMModel):
         print('------------unfreeze_layer--------------')
     
     def chat(self, tokenizer, question, do_sample=False, history=[]):
-        answer, history, _ = chat(image_path=None, model=self, tokenizer=tokenizer,query=question,history=history)
+        answer, history, _ = chat(image_path=None, model=self, tokenizer=tokenizer,query=question,history=history, temperature=1e-6)
         return answer
 
 
@@ -185,25 +186,30 @@ class FinetunedChatGLM_Evaluator(Evaluator):
                 device=device,
             )
         )
-        model = model.half().to(device)
+        # if args.quant:
+        #     quantize(model.transformer, args.quant)
+        # model = model.half().to(device)
         model = model.eval()
+        if args.quant:
+            quantize(model.transformer, args.quant)
         model.add_mixin('auto-regressive', CachedAutoregressiveMixin())
         self.model = model
 
-    def eval_subject(self, subject_name, test_df, dev_df=None, few_shot=False, cot=False, save_result_dir=None):
+    def eval_subject(self, subject_name, test_df, dev_df=None, few_shot=False, cot=False, save_result_dir=None, ntrain=None):
         correct_num = 0
+        question_count = 0
         if save_result_dir:
             if few_shot:
                 result = []
             score = []
         if few_shot:
-
-            history = self.generate_few_shot_prompt(subject_name, dev_df, cot=cot)
+            history = self.generate_few_shot_prompt(subject_name, dev_df, cot=cot, ntrain=ntrain)
         else:
             history = []
         answers = list(test_df['answer'])
         for row_index, row in tqdm(test_df.iterrows(), total=len(test_df)):
             question = self.format_example(row, include_answer=False, cot=cot)
+            question_count += 1
             if few_shot:
                 response = self.model.chat(self.tokenizer, question, do_sample=False, history=history)
                 response = response.strip()
@@ -228,13 +234,15 @@ class FinetunedChatGLM_Evaluator(Evaluator):
             test_df['correctness'] = score
             test_df.to_csv(os.path.join(save_result_dir, f'{subject_name}_test.csv'))
 
-        return correct_ratio
+        return question_count, correct_ratio
     
-    def generate_few_shot_prompt(self, subject, dev_df, cot=False):
+    def generate_few_shot_prompt(self, subject, dev_df, ntrain=None, cot=False):
         message = []
         k = self.k
         if self.k == -1:
             k = dev_df.shape[0]
+        if ntrain:
+            k = min(ntrain, k)
         message.append(self.format_example(dev_df.iloc[0, :], cot=cot, add_prompt=f"以下是中国关于{subject}考试的单项选择题，请选出其中的正确答案。\n\n"))
         for i in range(1, k):
             message.append(self.format_example(dev_df.iloc[i, :], cot=cot))

@@ -24,6 +24,7 @@ class ChatGLM_Evaluator(Evaluator):
 
     def eval_subject(self, subject_name, test_df, dev_df=None, few_shot=False, cot=False, save_result_dir=None):
         correct_num = 0
+        question_count = 0
         if save_result_dir:
             if few_shot:
                 result = []
@@ -35,6 +36,7 @@ class ChatGLM_Evaluator(Evaluator):
         answers = list(test_df['answer'])
         for row_index, row in tqdm(test_df.iterrows(), total=len(test_df)):
             question = self.format_example(row, include_answer=False, cot=cot)
+            question_count += 1
             if few_shot:
                 response, _ = self.model.chat(self.tokenizer, question, do_sample=False, history=history)
                 response = response.strip()
@@ -59,7 +61,7 @@ class ChatGLM_Evaluator(Evaluator):
             test_df['correctness'] = score
             test_df.to_csv(os.path.join(save_result_dir, f'{subject_name}_test.csv'))
 
-        return correct_ratio
+        return question_count, correct_ratio
     
     def generate_few_shot_prompt(self, subject, dev_df, cot=False):
         message = []
